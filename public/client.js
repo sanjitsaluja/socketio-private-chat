@@ -1,22 +1,32 @@
 var socket = io();
 
+// login serves are your credential
+// People can send you messages with @login
 var login = getParameterByName("login");
-
 if (!login) {
   alert("Supply login parameter");
+  $("#title").text("Reload page with login parameter");
+} else {
+  $("#title").text("You are logged in as " + login);
 }
 
-// Channel server is listening on
-// All clients can publish
+// Channel server is listening on.
+// This is the channel on which all clients send messages to server.
+// Clients cannot send direct messages to another clients private channel.
 var public_channel = "channel_public";
 
 // Incoming messages channel
+// This is the channel on which incoming messages will be delivered.
+// Only server can send messages on this channel.
 var private_channel = "channel_" + login;
 
-$('form').submit(function(){
+///////////////////////////////////////////////////
+/// Outgoing Messages
+///////////////////////////////////////////////////
+
+$('form').submit(function() {
   var text_message = $('#m').val();
   recipients = text_message.match(/@\w*/g, '');
-  console.log(recipients);
   for (var i = 0; i < recipients.length; i++) {
     var recipient = recipients[i].substr(1);;
     var message = {
@@ -34,13 +44,30 @@ $('form').submit(function(){
   return false;
 });
 
+///////////////////////////////////////////////////
+/// Incoming Messages
+///////////////////////////////////////////////////
+
+
+// Listen for incoming messages on the private channel
 socket.on(private_channel, function(msg){
-  var message = msg.message;
-  var sender = msg.from;
-  console.log("Received message:");
-    console.log(msg);
-  $('#messages').append($('<li>').text(sender + ": " + message));
+  processIncomingMessage(msg);
 });
+
+function processIncomingMessage(msg) {
+  console.log("Received message:");
+  console.log(msg);
+  if (msg.type == "text_message") 
+  {
+    var message = msg.message;
+    var sender = msg.from;
+    $('#messages').append($('<li>').text(sender + ": " + message));
+  }
+}
+
+///////////////////////////////////////////////////
+/// Helper Methods
+///////////////////////////////////////////////////
 
 function getParameterByName(name, url) {
     if (!url) url = window.location.href;
