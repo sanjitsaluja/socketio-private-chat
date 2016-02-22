@@ -26,28 +26,59 @@ var private_channel = "channel_" + login;
 
 $('form').submit(function() {
   var text_message = $('#m').val();
-  recipients = text_message.match(/@\w*/g, '');
-  for (var i = 0; i < recipients.length; i++) {
-    var recipient = recipients[i].substr(1);;
+  var recipient = getRecipient(text_message);  
+  if (recipient != null && recipient.length > 0) {
     var message = {
       to: recipient,
       from: login,
       message: text_message,
       type: "text_message",
     }
+    sendMessage(message);
+    $('#messages').append($('<li>').text("You" + ": " + text_message));
+    $('#m').val('').trigger('input');
+  }
+  return false;
+});
+
+var previous_typing_recipient = null;
+
+$('#m').on('input', function(e){
+  var text_message = $('#m').val();
+  var recipient = getRecipient(text_message);
+  if (previous_typing_recipient != recipient) {
+    var message = {
+      to: previous_typing_recipient,
+      from: login,
+      type: "not_typing",
+    };
+    sendMessage(message);
+    previous_typing_recipient = null;
+  }
+  
+  if (previous_typing_recipient == null)
+  {
+    var message = {
+      to: recipient,
+      from: login,
+      type: "typing",
+    };
+    sendMessage(message);
+    previous_typing_recipient = recipient;
+  }
+});
+
+function sendMessage(message) {
+  if (message.to && message.from && message.type) {
     console.log("Sending message:");
     console.log(message);
     socket.emit(public_channel, message);
   }
-  $('#messages').append($('<li>').text("You" + ": " + text_message));
-  $('#m').val('');
-  return false;
-});
+}
 
 ///////////////////////////////////////////////////
 /// Incoming Messages
 ///////////////////////////////////////////////////
-
 
 // Listen for incoming messages on the private channel
 socket.on(private_channel, function(msg){
@@ -57,17 +88,30 @@ socket.on(private_channel, function(msg){
 function processIncomingMessage(msg) {
   console.log("Received message:");
   console.log(msg);
+  var sender = msg.from;
   if (msg.type == "text_message") 
   {
     var message = msg.message;
-    var sender = msg.from;
     $('#messages').append($('<li>').text(sender + ": " + message));
+  }
+  else if (msg.type == "typing")
+  {
+    $('#messages').append($('<li>').addClass(sender + "-typing").text(sender + " is typing"));
+  }
+  else if (msg.type == "not_typing")
+  {
+    $("li." + sender + "-typing").remove();
   }
 }
 
 ///////////////////////////////////////////////////
 /// Helper Methods
 ///////////////////////////////////////////////////
+
+function getRecipient(text_message) {
+  recipient = text_message.match(/@\w*\s/) || [];
+  return recipient[0] ? recipient[0].trim().substr(1) : null;
+}
 
 function getParameterByName(name, url) {
     if (!url) url = window.location.href;
@@ -78,3 +122,7 @@ function getParameterByName(name, url) {
     if (!results[2]) return '';
     return decodeURIComponent(results[2].replace(/\+/g, " "));
 }
+
+Array.prototype.diff = function(a) {
+  return this.filter(function(i) {return a.indexOf(i) < 0;});
+};
